@@ -129,11 +129,13 @@ mysql_count() {
 
 case "$MODE" in
 "memory")
+	[ "$TCPID" ] || report_error "Can not find PID of $WORLDSERVER_NAME! Is it running?"
 	echo "trinitycore_memory_rss.value $(awk '/VmRSS/ {print $2*1024}' /proc/${TCPID}/status)"
 	echo "trinitycore_memory_size.value $(awk '/VmSize/ {print $2*1024}' /proc/${TCPID}/status)"
 	echo "trinitycore_memory_peak.value $(awk '/VmPeak/ {print $2*1024}' /proc/${TCPID}/status)"
 	;;
 "threads")
+	[ "$TCPID" ] || report_error "Can not find PID of $WORLDSERVER_NAME! Is it running?"
 	echo "trinitycore_threads.value $(awk '/Threads/ {print $2}' /proc/${TCPID}/status)"
 	;;
 "characters"|"characters_online")
