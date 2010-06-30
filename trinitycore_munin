@@ -139,6 +139,7 @@ case "$MODE" in
 	echo "trinitycore_threads.value $(awk '/Threads/ {print $2}' /proc/${TCPID}/status)"
 	;;
 "characters"|"characters_online")
+	[ "$db_characters" ] || report_error "You need to set env.db_characters in munin-node config!"
 	if [ "$MODE" == "characters_online" ] ; then
 		SQL="online=1"
 		ON="online_"
