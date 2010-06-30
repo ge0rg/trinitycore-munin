@@ -1,0 +1,144 @@
+#!/bin/bash
+# 
+# Munin plugin for TrinityCore, version 0.2
+#
+# (C) 2010 Georg Lukas <georg@op-co.de>
+# Based on ejabberd-plugin by Christian Dröge <Christian@draugr.de>,
+#        Lasse Karstensen <lkarsten@hyse.org>, Peter Viskup <skupko.sk@gmail.com>
+#
+#
+# To install, just copy somewhere and make symlinks from /etc/munin/plugins to it:
+#
+# trinitycore_characters
+# trinitycore_characters_online
+# trinitycore_memory
+# trinitycore_threads
+#
+# You need to provide this plugin with several env variables through munin-node config:
+#
+# [trinity_*]
+# env.mysqlopts -u<mysql_user> -p<mysql_password>
+# env.db_characters <name_of_characters_database>
+#
+
+if [ "$1" == "suggest" ]; then
+	echo "characters"
+	echo "characters_online"
+	echo "memory"
+	echo "threads"
+	#echo "accounts"
+	#echo "uptime"
+	exit 0
+fi
+
+# get tc PID
+TCPID=$(ps -ef | awk '/worldserver$/ {print $2}')
+
+MODE=`basename $0 | sed 's/^trinitycore_//g'`
+
+if ! [ "$MODE" == "characters" -o "$MODE" == "characters_online" \
+  -o "$MODE" == "memory" -o "$MODE" == "threads" \
+  -o "$MODE" == "accounts" -o "$MODE" == "uptime" ]; then
+	echo "ERROR: Unknown mode \"$MODE\". Exiting." > /dev/stderr
+	exit -1
+fi
+
+if [ "$1" = "config" ]; then
+	case "$MODE" in
+	"memory")
+		echo 'graph_args --base 1024 -l 0'
+		echo 'graph_scale yes'
+		echo 'graph_title Memory of TrinityCore process'
+		echo 'graph_vlabel Bytes'
+		echo "trinitycore_memory_rss.label physical memory";
+		echo "trinitycore_memory_rss.info Physical RAM used by TrinityCore process in Bytes";
+		echo "trinitycore_memory_size.label total memory";
+		echo "trinitycore_memory_size.info Memory used by TrinityCore process in Bytes";
+		echo "trinitycore_memory_peak.label memory peak";
+		echo "trinitycore_memory_peak.info Memory peak of TrinityCore process in Bytes";
+		;;
+	"characters"|"characters_online")
+		if [ "$MODE" == "characters" ] ; then
+			echo 'graph_title Registered Characters'
+		else
+			echo 'graph_title Online Characters'
+			ON="online_"
+		fi
+		echo 'graph_vlabel characters'
+		echo 'graph_args --base 1000 -l 0'
+		echo "characters_${ON}both.label Both factions"
+		echo "characters_${ON}alliance.label Alliance"
+		echo "characters_${ON}horde.label Horde"
+		;;
+	"users")
+		echo 'graph_title Connected users'
+		echo 'graph_vlabel users'
+		for host in $vhosts; do
+			formathost=$(echo $host | tr '.' '_')
+			echo "connected_users_$formathost.label $host connected users";
+			echo "connected_unique_users_$formathost.label $host unique connected users";
+		done;
+		;;
+	"registrations")
+		echo 'graph_title Number of registered users'
+		echo 'graph_vlabel users'
+		for host in $vhosts; do
+			formathost=$(echo $host | tr '.' '_')
+			echo "registered_$formathost.label $host registered users";
+			echo "registered_$formathost.info Registered users for vhost $host"
+		done;
+		;;
+	"threads")
+		echo 'graph_title TrinityCore threads'
+		echo 'graph_vlabel threads'
+		echo "trinitycore_threads.label number of threads";
+		echo "trinitycore_threads.info Number of threads of TrinityCore process";
+		;;
+	"uptime")
+		echo 'graph_title Uptime of trinitycore server'
+		echo 'uptime in days'
+		echo "uptime.label uptime"
+		echo 'uptime.draw AREA'
+		;;
+	*)
+		echo "ERROR: Unknown mode \"$MODE\". Exiting." > /dev/stderr
+		exit 1
+		;;
+	esac
+	echo 'graph_category trinitycore'
+	echo 'graph_info This graph shows a statistic of TrinityCore'
+	exit 0
+fi
+
+HORDE_CHAR="race IN(2,5,6,8,10)"
+ALLIANCE_CHAR="race IN(1,3,4,7,11)"
+
+mysql_count() {
+	mysql $mysqlopts $db_characters -ssBe "select count(*) from characters where $@;"
+}
+
+case "$MODE" in
+"memory")
+	echo "trinitycore_memory_rss.value $(awk '/VmRSS/ {print $2*1024}' /proc/${TCPID}/status)"
+	echo "trinitycore_memory_size.value $(awk '/VmSize/ {print $2*1024}' /proc/${TCPID}/status)"
+	echo "trinitycore_memory_peak.value $(awk '/VmPeak/ {print $2*1024}' /proc/${TCPID}/status)"
+	;;
+"threads")
+	echo "trinitycore_threads.value $(awk '/Threads/ {print $2}' /proc/${TCPID}/status)"
+	;;
+"characters"|"characters_online")
+	if [ "$MODE" == "characters_online" ] ; then
+		SQL="online=1"
+		ON="online_"
+	else
+		SQL="true"
+	fi
+	echo "characters_${ON}both.value $(mysql_count "$SQL")"
+	echo "characters_${ON}alliance.value $(mysql_count "$SQL and $ALLIANCE_CHAR")"
+	echo "characters_${ON}horde.value $(mysql_count "$SQL and $HORDE_CHAR")"
+	;;
+*)
+	echo "ERROR: Unknown mode \"$MODE\". Exiting." > /dev/stderr
+	exit 1
+	;;
+esac
