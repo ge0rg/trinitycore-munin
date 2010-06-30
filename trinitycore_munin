@@ -21,6 +21,10 @@
 # env.db_characters <name_of_characters_database>
 #
 
+WORLDSERVER_NAME="worldserver"
+# If you are running an old core, use this instead:
+#WORLDSERVER_NAME="trinity-core"
+
 if [ "$1" == "suggest" ]; then
 	echo "characters"
 	echo "characters_online"
@@ -32,9 +36,10 @@ if [ "$1" == "suggest" ]; then
 fi
 
 # get tc PID
-TCPID=$(ps -ef | awk '/worldserver$/ {print $2}')
+TCPID=$(pidof "$WORLDSERVER_NAME")
 
-MODE=`basename $0 | sed 's/^trinitycore_//g'`
+# determine the plugin mode
+MODE=$(basename $0 | sed 's/^trinitycore_//g')
 
 if ! [ "$MODE" == "characters" -o "$MODE" == "characters_online" \
   -o "$MODE" == "memory" -o "$MODE" == "threads" \
